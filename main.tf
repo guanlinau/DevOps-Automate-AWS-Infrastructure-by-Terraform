@@ -11,9 +11,8 @@ variable availability_zone {}
 variable env_profix {}
 variable my_ip_address {}
 variable instance_type {}
-variable public_key_location {
-  
-}
+variable public_key_location {}
+variable private_key_location {}
 
 // 1) Create a vpc 
 resource "aws_vpc" "myapp_vpc" {
@@ -141,9 +140,34 @@ resource "aws_instance" "myapp_server" {
 
   associate_public_ip_address = true
   key_name = aws_key_pair.ssh-key.key_name
+  
+  connection {
+    type="ssh"
+    host = self.public_ip
+    user = "ec2-user"
+    private_key = file(var.private_key_location)
+  }
 
-  user_data = file("entry-script.sh")
+  provisioner "file" {
+    source = "entry-script.sh"
+    destination = "/home/ec2-user/entry-script.sh"
+  }
+provisioner "remote-exec" {
+    inline =[
+      "ls",
+      "sudo yum update -y && sudo yum install -y docker",
+      "sudo systemctl start docker ",
+      "sudo usermod -aG docker ec2-user",
+      
+      "docker run -p 8080:80 nginx",
+    ]
+   
+  }
 
+  provisioner "local-exec" {
+    command = "echo ${self.public_ip} " && "echo ${self.public_ip} > output.txt"
+    
+  }
   tags = {
      Name = "${var.env_profix}-server"
   }
